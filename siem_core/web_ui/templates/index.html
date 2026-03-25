@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIEM SOC Dashboard | Advanced Security Monitoring</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #020617;
+            --bg-card: #0f172a;
+            --primary: #0ea5e9;
+            --primary-glow: rgba(14, 165, 233, 0.4);
+            --secondary: #64748b;
+            --danger: #f43f5e;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --text-main: #f1f5f9;
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-deep);
+            background-image: radial-gradient(circle at 50% -20%, #1e293b, transparent);
+            color: var(--text-main);
+            min-height: 100vh;
+        }
+        .container { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 3rem; padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .logo { 
+            font-size: 1.75rem; font-weight: 800; color: var(--text-main); 
+            letter-spacing: -1px; display: flex; align-items: center; gap: 8px;
+        }
+        .logo span { color: var(--primary); text-shadow: 0 0 15px var(--primary-glow); }
+        
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem; margin-bottom: 3rem;
+        }
+        .stat-card {
+            background: var(--bg-card); border: 1px solid var(--glass-border);
+            border-radius: 20px; padding: 2rem; position: relative;
+            overflow: hidden; backdrop-filter: blur(10px);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .stat-card:hover { transform: translateY(-5px); border-color: var(--primary); box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); }
+        .stat-val { font-size: 3.5rem; font-weight: 800; margin-top: 0.5rem; color: var(--text-main); }
+        .stat-label { font-size: 0.75rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 2px; font-weight: 600; }
+        .stat-card::after {
+            content: ''; position: absolute; top: 0; right: 0; width: 100px; height: 100px;
+            background: radial-gradient(circle at top right, var(--primary-glow), transparent); opacity: 0.3;
+        }
+
+        .dashboard-content { display: grid; grid-template-columns: 2.5fr 1fr; gap: 2rem; }
+        .panel {
+            background: var(--bg-card); border: 1px solid var(--glass-border);
+            border-radius: 24px; padding: 2rem; backdrop-filter: blur(10px);
+        }
+        .panel-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .panel-t { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.5px; }
+
+        #refresh-btn {
+            background: var(--primary); color: white; border: none;
+            padding: 10px 24px; border-radius: 12px; font-weight: 600;
+            cursor: pointer; transition: all 0.3s ease;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+        #refresh-btn:hover { transform: scale(1.05); filter: brightness(1.1); box-shadow: 0 8px 25px var(--primary-glow); }
+        #refresh-btn:active { transform: scale(0.95); }
+
+        table { width: 100%; border-collapse: separate; border-spacing: 0 8px; margin-top: 1rem; }
+        th { text-align: left; padding: 12px 1.5rem; color: var(--secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
+        td { padding: 1.25rem 1.5rem; background: var(--glass); font-size: 0.95rem; }
+        tr td:first-child { border-radius: 12px 0 0 12px; }
+        tr td:last-child { border-radius: 0 12px 12px 0; }
+        
+        .badge {
+            padding: 6px 12px; border-radius: 8px; font-size: 0.7rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .badge-critical { background: var(--danger); color: #fff; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.4); }
+        .badge-high { background: var(--warning); color: #fff; }
+
+        .live-indicator-wrapper {
+            background: var(--glass); padding: 8px 16px; border-radius: 100px;
+            display: flex; align-items: center; gap: 10px; border: 1px solid var(--glass-border);
+        }
+        .live-indicator {
+            width: 8px; height: 8px; background: var(--success);
+            border-radius: 50%; box-shadow: 0 0 12px var(--success);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">SIEM <span>CORE</span> <small style="font-size: 0.6em; opacity: 0.5; margin-left: 10px;">PRO EDITION</small></div>
+            <div class="live-indicator-wrapper">
+                <div class="live-indicator"></div>
+                <span style="font-size: 0.75rem; font-weight: 700; color: var(--success);">LIVE MONITORING</span>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Security Events</div>
+                <div id="event-count" class="stat-val">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Alerts</div>
+                <div id="alert-count" class="stat-val" style="color: var(--warning);">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Critical Incidents</div>
+                <div id="critical-count" class="stat-val" style="color: var(--danger);">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">System Health</div>
+                <div class="stat-val" style="color: var(--success); font-size: 1.5rem; margin-top: 1.5rem;">OPTIMAL</div>
+            </div>
+        </div>
+
+        <div class="dashboard-content">
+            <div class="panel">
+                <div class="panel-h">
+                    <div class="panel-t">Attack Timeline</div>
+                    <button id="refresh-btn">Force Refresh</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Severity</th>
+                            <th>Incident & MITRE</th>
+                            <th>Source IP</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alert-table">
+                        <!-- Alert rows will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="panel">
+                <div class="panel-h">
+                    <div class="panel-t">Threat Analytics</div>
+                </div>
+                <div style="height: 250px; position: relative;">
+                    <canvas id="attackChart"></canvas>
+                </div>
+                <div id="geo-insights" style="margin-top: 2rem;">
+                    <p style="color: var(--secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Top Attacker Locations</p>
+                    <div style="margin-top: 1rem;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.875rem;">
+                            <span>🇺🇸 United States</span>
+                            <span style="color: var(--primary);">42%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.875rem;">
+                            <span>🇷🇺 Russia</span>
+                            <span style="color: var(--danger);">28%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.875rem;">
+                            <span>🇨🇳 China</span>
+                            <span style="color: var(--warning);">15%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let attackChart;
+
+        function initChart() {
+            const ctx = document.getElementById('attackChart').getContext('2d');
+            attackChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Web Attacks', 'Network IDS', 'Brute Force'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#0ea5e9', '#f43f5e', '#f59e0b'],
+                        borderWidth: 0,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    cutout: '80%',
+                    plugins: { legend: { display: false } },
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        const mitreMap = {
+            'Brute Force': 'T1110',
+            'SQL Injection': 'T1190',
+            'SYN Flood': 'T1498',
+            'ARP Spoofing': 'T1557.002',
+            'Port Scanning': 'T1595'
+        };
+
+        function getMitre(msg) {
+            for (let k in mitreMap) {
+                if (msg.includes(k)) return mitreMap[k];
+            }
+            return 'T1000';
+        }
+
+        async function updateStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                document.getElementById('event-count').textContent = data.events;
+                document.getElementById('alert-count').textContent = data.alerts;
+                document.getElementById('critical-count').textContent = data.critical || 0;
+                
+                // Update chart mock data
+                if (attackChart) {
+                    attackChart.data.datasets[0].data = [data.events % 50, data.alerts, data.critical];
+                    attackChart.update();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function updateAlerts() {
+            try {
+                const res = await fetch('/api/alerts');
+                const alerts = await res.json();
+                const table = document.getElementById('alert-table');
+                
+                if (alerts.length === 0) {
+                    table.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--secondary)">System optimal. No active threats.</td></tr>';
+                    return;
+                }
+
+                table.innerHTML = '';
+                alerts.forEach(hit => {
+                    const alert = hit._source;
+                    const row = document.createElement('tr');
+                    const severityClass = alert.severity === 'CRITICAL' ? 'badge-critical' : (alert.severity === 'HIGH' ? 'badge-high' : '');
+                    const mitre = getMitre(alert.message);
+                    
+                    row.innerHTML = `
+                        <td style="color: var(--secondary)">${new Date(alert.timestamp).toLocaleTimeString()}</td>
+                        <td><span class="badge ${severityClass}">${alert.severity}</span></td>
+                        <td>
+                            <div style="font-weight: 600;">${alert.message}</div>
+                            <div style="font-size: 0.65rem; color: var(--primary); margin-top: 4px;">MITRE ATT&CK: ${mitre}</div>
+                        </td>
+                        <td><code>${alert.event_context?.src_ip || '127.0.0.1'}</code></td>
+                    `;
+                    table.appendChild(row);
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        document.getElementById('refresh-btn').onclick = async () => {
+            const btn = document.getElementById('refresh-btn');
+            const original = btn.textContent;
+            btn.textContent = '🔄 Refreshing...';
+            btn.disabled = true;
+            await updateStats();
+            await updateAlerts();
+            setTimeout(() => {
+                btn.textContent = original;
+                btn.disabled = false;
+            }, 500);
+        };
+
+        initChart();
+        setInterval(() => {
+            updateStats();
+            updateAlerts();
+        }, 5000);
+
+        updateStats();
+        updateAlerts();
+    </script>
+</body>
+</html>
